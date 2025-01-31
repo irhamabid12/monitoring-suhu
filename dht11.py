@@ -50,6 +50,8 @@ def read_dht11():
             
             # Kembalikan data
             return {
+                "device": "Raspberry Pi 5|Lumba-Lumba 01",
+                "sensor": "DHT11",
                 "temp": temperature,
                 "hum": humidity,
                 "ip_address": ip_address,
