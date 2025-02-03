@@ -47,10 +47,13 @@ def read_dht11():
             
             # Ambil waktu saat ini
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # Ambil hostname perangkat secara dinamis
+            device_name = socket.gethostname()
             
             # Kembalikan data
             return {
-                "device": "Raspberry Pi 5|Lumba-Lumba 160",
+                "device": "Raspberry Pi 5|{device_name}",
                 "device_kode": "Lumba-Lumba",
                 "sensor": "DHT11",
                 "temp": temperature,
