@@ -9,7 +9,7 @@
     "max_hum": 85,
     "hum_calibration": 5,
     "notification_on": true,
-    "wa_number": "081332816631",
+    "wa_number": "",
     "calibration_time": "2025-05-05 10:52:30",
     "user_calibrator": "ITSUPPORT   "
 }
