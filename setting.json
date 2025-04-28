@@ -1,0 +1,15 @@
+{
+    "location": "Gudang Farmasi",
+    "label": "Ruangan Programmer ITKI",
+    "calibration": true,
+    "min_temp": 20,
+    "max_temp": 39,
+    "temp_calibration": 0,
+    "min_hum": 40,
+    "max_hum": 85,
+    "hum_calibration": 5,
+    "notification_on": true,
+    "wa_number": "081332816631",
+    "calibration_time": "2025-05-05 10:52:30",
+    "user_calibrator": "ITSUPPORT   "
+}
