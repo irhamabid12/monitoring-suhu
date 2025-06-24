@@ -60,7 +60,7 @@ def read_dht11():
         if temperature is not None and humidity is not None:
             # Ambil IP address perangkat
             ip_address = get_ip_from_eth0()
-            
+                raise ValueError("Sensor DHT11 gagal membaca data.")
             # Ambil MAC address perangkat
             mac_address = ':'.join(['{:02x}'.format((uuid.getnode() >> elements) & 0xff)
                                     for elements in range(0, 2*6, 2)][::-1])
