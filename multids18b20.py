@@ -44,8 +44,6 @@ def get_ip_from_eth0():
         print(f"Error: {e}")
         return None
 
-
-
 # Fungsi untuk membaca suhu dari semua sensor DS18B20
 def read_ds18b20():
     global last_temp_notification_time
