@@ -25,6 +25,7 @@ os.environ['TZ'] = 'Asia/Jakarta'
 
 # URL WebSocket server
 WEBSOCKET_URL = "wss://e-mon.rsudrsoetomo.jatimprov.go.id/ws_monitoring_suhu/"  #URL server WebSocket
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config", "setting_dht11.json")
 
 device_id = None
 mac_address = None
@@ -50,16 +51,47 @@ def generate_device_id():
     else:
         device_id = str(binascii.crc32(mac_address.encode()) & 0xffffffff)
     
+    # Buat file jika belum ada
+    ensure_setting()
+
     # Baca file setting.json
-    with open("setting.json", "r") as file:
+    with open(CONFIG_PATH, "r") as file:
         settingUpdate = json.load(file)
 
     # Update device_id
     settingUpdate["device_id"] = device_id
 
     # Simpan kembali ke file
-    with open("setting.json", "w") as file:
+    with open(CONFIG_PATH, "w") as file:
         json.dump(settingUpdate, file, indent=4)
+
+# create setting_dht11.json 
+def ensure_setting():
+    global device_id  # agar bisa diakses dalam default_settings
+
+    default_settings = {
+        "device_id": str(device_id),
+        "location": "Adm Instalasi Teknologi Komunikasi Dan Informasi",
+        "label": "Ruangan Programmer ITKI",
+        "calibration": False,
+        "min_temp": 0,
+        "max_temp": 0,
+        "temp_calibration": 0,
+        "min_hum": 0,
+        "max_hum": 0,
+        "hum_calibration": 0,
+        "notification_on": 0,
+        "wa_number": None,
+        "calibration_time": None,
+        "user_calibrator": None
+    }
+
+    os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
+
+    # Buat file JSON kosong jika belum ada
+    if not os.path.exists(CONFIG_PATH):
+        with open(CONFIG_PATH, 'w') as f:
+            json.dump(default_settings, f, indent=4)
 
 # Fungsi untuk mendapatkan IP address dari eth0
 def get_ip_from_eth0():
@@ -81,6 +113,9 @@ def read_dht11():
     global last_temp_notification_time, last_hum_notification_time 
 
     try:
+        # Buat file jika belum ada
+        ensure_setting()
+
         # Ambil data dari setting.json
         settings = load_settings()
 
@@ -262,7 +297,7 @@ def change_setting (message_data):
         print("Pesan forwarding diterima — memperbarui setting.json...")
         
         # Baca file setting.json
-        with open("setting.json", "r") as file:
+        with open(CONFIG_PATH, "r") as file:
             settings = json.load(file)
         
        # Update nilai yang dikirim kalau ada
@@ -292,7 +327,7 @@ def change_setting (message_data):
             settings["user_calibrator"] = message_data["user_calibrator"]
         
         # Tulis kembali ke file setting.json
-        with open("setting.json", 'w') as file:
+        with open(CONFIG_PATH, 'w') as file:
             json.dump(settings, file, indent=4)
         
         print("Setting.json berhasil diperbarui.")
@@ -300,7 +335,7 @@ def change_setting (message_data):
 # Baca data dari setting.json
 def load_settings():
     try:
-        with open("setting.json", "r") as file:
+        with open(CONFIG_PATH, "r") as file:
             settings = json.load(file)
         return settings
     except (FileNotFoundError, json.JSONDecodeError):

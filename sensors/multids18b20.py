@@ -12,6 +12,7 @@ import binascii
 
 # URL WebSocket server
 WEBSOCKET_URL = "wss://e-mon.rsudrsoetomo.jatimprov.go.id/ws_monitoring_suhu/"
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config", "setting_ds18b20.json")
 
 device_id = None
 mac_address = None
@@ -186,7 +187,7 @@ def reconnecting():
 # Baca data dari setting_ds18b20.json
 def load_settings(sensor_id=None):
     try:
-        with open("setting_ds18b20.json", "r") as file:
+        with open(CONFIG_PATH, "r") as file:
             settings = json.load(file)
         # return settings
 
@@ -212,22 +213,22 @@ def ensure_sensor_settings(sensor_id, device_id, default_settings=None):
             "user_calibrator": None
         }
 
-    settings_file = 'setting_ds18b20.json'
+    # Buat direktori jika belum ada
+    os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
 
-    # Buat file jika belum ada
-    if not os.path.exists(settings_file):
-        with open(settings_file, 'w') as f:
-            # json.dump({"default": default_settings}, f, indent=4)
-            json.dump({}, f)
+    # Buat file JSON kosong jika belum ada
+    if not os.path.exists(CONFIG_PATH):
+        with open(CONFIG_PATH, 'w') as f:
+            json.dump({}, f, indent=4)
 
     # Baca isi file
-    with open(settings_file, 'r') as f:
+    with open(CONFIG_PATH, 'r') as f:
         settings_data = json.load(f)
 
     # Tambahkan sensor_id jika belum ada
     if sensor_id not in settings_data:
         settings_data[sensor_id] = default_settings
-        with open(settings_file, 'w') as f:
+        with open(CONFIG_PATH, 'w') as f:
             json.dump(settings_data, f, indent=4)
 
 # membaca pesan dari web socet
@@ -267,7 +268,7 @@ def change_setting (message_data):
         print("Pesan forwarding diterima — memperbarui setting_ds18b20.json...")
         
         # Baca file setting_ds18b20.json
-        with open("setting_ds18b20.json", "r") as file:
+        with open(CONFIG_PATH, "r") as file:
             settings = json.load(file)
         
          # Cari sensor_id yang memiliki device_id yang cocok
@@ -278,7 +279,6 @@ def change_setting (message_data):
                 break
 
         if (found_sensor_id):
-
             sensor_settings = settings[found_sensor_id]
 
             # Update nilai yang dikirim kalau ada
@@ -304,7 +304,7 @@ def change_setting (message_data):
             settings[sensor_id] = sensor_settings  # Simpan kembali perubahan
 
             # Tulis kembali ke file setting_ds18b20.json
-            with open("setting_ds18b20.json", 'w') as file:
+            with open(CONFIG_PATH, 'w') as file:
                 json.dump(settings, file, indent=4)
             
             print("setting_ds18b20.json berhasil diperbarui.")

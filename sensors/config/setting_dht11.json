@@ -1,0 +1,16 @@
+{
+    "device_id": "1422068251",
+    "location": "Adm Instalasi Teknologi Komunikasi Dan Informasi",
+    "label": "Ruangan Programmer ITKI",
+    "calibration": false,
+    "min_temp": 0,
+    "max_temp": 0,
+    "temp_calibration": 0,
+    "min_hum": 0,
+    "max_hum": 0,
+    "hum_calibration": 0,
+    "notification_on": 0,
+    "wa_number": null,
+    "calibration_time": null,
+    "user_calibrator": null
+}
