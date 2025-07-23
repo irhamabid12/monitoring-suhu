@@ -1,0 +1,54 @@
+{
+    "00000034c13c": {
+        "device_id": "3457340",
+        "location": "ITKI (Lt. IV)",
+        "label": "Kulkas lt. 4",
+        "calibration": false,
+        "min_temp": 0,
+        "max_temp": 10,
+        "temp_calibration": null,
+        "notification_on": true,
+        "wa_number": "081332816631",
+        "calibration_time": "2025-07-23 08:39:14",
+        "user_calibrator": "ITSUPPORT   "
+    },
+    "000000363051": {
+        "device_id": "3551313",
+        "location": "Gudang Farmasi",
+        "label": "KULKAS 4",
+        "calibration": false,
+        "min_temp": 0,
+        "max_temp": 13,
+        "temp_calibration": null,
+        "notification_on": true,
+        "wa_number": "081332816631",
+        "calibration_time": "2025-07-23 08:36:44",
+        "user_calibrator": "ITSUPPORT   "
+    },
+    "00000034d323": {
+        "device_id": "3461923",
+        "location": "Adm Instalasi Teknologi Komunikasi Dan Informasi",
+        "label": "Ruangan Programmer ITKI",
+        "calibration": false,
+        "min_temp": null,
+        "max_temp": null,
+        "temp_calibration": null,
+        "notification_on": false,
+        "wa_number": null,
+        "calibration_time": null,
+        "user_calibrator": null
+    },
+    "00000035dd6d": {
+        "device_id": "3530093",
+        "location": "ITKI (Lt. IV)",
+        "label": "Ruangan Programmer ITKI",
+        "calibration": false,
+        "min_temp": -3,
+        "max_temp": 3,
+        "temp_calibration": null,
+        "notification_on": false,
+        "wa_number": "081332816631",
+        "calibration_time": "2025-07-02 12:11:49",
+        "user_calibrator": "ITSUPPORT   "
+    }
+}
