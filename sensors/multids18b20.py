@@ -16,6 +16,8 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config", "setting_ds18b20
 
 device_id = None
 mac_address = None
+ema_values = {}
+smoothing_alpha = 0.05  # Faktor smoothing untuk EMA
 
 # Fungsi untuk generate device id
 def generate_device_id():
@@ -91,9 +93,24 @@ def read_ds18b20():
 
             try:
                 temp_raw = sensor.get_temperature()
+                time.sleep(0.15)  # <---- tambahkan delay 1.5s untuk stabilisasi pembacaan suhu
                 if temp_raw is None:
                     raise ValueError("Sensor tidak terbaca")
-                temperature = round(temp_raw + (temp_calibration or 0.0), 2)
+                # temperature = round(temp_raw + (temp_calibration or 0.0), 1)
+                
+                calibrated_temp = round(temp_raw + (temp_calibration or 0.0), 1)
+
+                # === Terapkan EMA smoothing ===
+                if sensor.id not in ema_values:
+                    # nilai pertama langsung masuk (initialize)
+                    ema_values[sensor.id] = calibrated_temp
+                else:
+                    ema_values[sensor.id] = (
+                        smoothing_alpha * calibrated_temp + (1 - smoothing_alpha) * ema_values[sensor.id]
+                    )
+
+                temperature = round(ema_values[sensor.id], 1)
+
             except Exception as e:
                 status = "ERROR"
                 temperature = None

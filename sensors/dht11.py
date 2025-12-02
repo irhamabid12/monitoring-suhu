@@ -173,8 +173,8 @@ def read_dht11():
             data.update(settings)
 
             # Cek apakah suhu atau humidity di luar batas
-            temp_not_normal = temperature < min_temp or temperature > max_temp
-            hum_not_normal = humidity < min_hum or humidity > max_hum
+            temp_not_normal = temperatureCal < min_temp or temperatureCal > max_temp
+            hum_not_normal = humidityCal < min_hum or humidityCal > max_hum
 
             # Cek suhu apakah di luar batas
             if temp_not_normal or hum_not_normal:
@@ -196,9 +196,9 @@ def read_dht11():
                             f"⚠️ *{parameter} tidak normal!*\n"
                             f"Waktu: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
                             f"Lokasi: *{label} di {location}*\n"
-                            f"Suhu sekarang: {temperature}°C\n"
+                            f"Suhu sekarang: {temperatureCal}°C\n"
                             f"Batas Suhu: {min_temp}°C - {max_temp}°C\n"
-                            f"Kelembaban sekarang: {humidity}%\n"
+                            f"Kelembaban sekarang: {humidityCal}%\n"
                             f"Batas Kelembaban: {min_hum}% - {max_hum}%\n"
                         )
 
