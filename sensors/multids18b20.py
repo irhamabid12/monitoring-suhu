@@ -32,7 +32,7 @@ def generate_device_id():
 # inisiasi variable time interval notifikasi
 last_temp_notification_time = None
 
-notification_interval = timedelta(seconds=60) # set delay selama 60 detik
+notification_interval = timedelta(minutes=5) # set delay selama 5 menit antara
 
 # Fungsi untuk mendapatkan IP address dari eth0
 def get_ip_from_eth0():
@@ -93,7 +93,7 @@ def read_ds18b20():
 
             try:
                 temp_raw = sensor.get_temperature()
-                time.sleep(0.15)  # <---- tambahkan delay 1.5s untuk stabilisasi pembacaan suhu
+                time.sleep(1)  # <---- tambahkan delay 1s untuk stabilisasi pembacaan suhu
                 if temp_raw is None:
                     raise ValueError("Sensor tidak terbaca")
                 # temperature = round(temp_raw + (temp_calibration or 0.0), 1)
