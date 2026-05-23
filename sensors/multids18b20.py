@@ -109,7 +109,7 @@ def read_ds18b20():
                         smoothing_alpha * calibrated_temp + (1 - smoothing_alpha) * ema_values[sensor.id]
                     )
 
-                temperature = round(ema_values[sensor.id], 1)
+                temperature = int(round(ema_values[sensor.id], 1))
 
             except Exception as e:
                 status = "ERROR"
