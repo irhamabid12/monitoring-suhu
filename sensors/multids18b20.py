@@ -5,6 +5,7 @@ import socket
 import uuid
 import websocket
 import subprocess
+import threading
 from datetime import datetime, timedelta
 from w1thermsensor import W1ThermSensor
 import requests
@@ -17,7 +18,16 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config", "setting_ds18b20
 device_id = None
 mac_address = None
 ema_values = {}
-smoothing_alpha = 0.05  # Faktor smoothing untuk EMA
+ema_lock = threading.Lock()  # Lock untuk thread safety akses ema_values
+
+# === Konfigurasi Algoritma Pembacaan Suhu ===
+# Alpha EMA: 0.2 = responsif tapi tetap halus (cocok untuk kulkas farmasi 2–8°C)
+# Semakin besar alpha → lebih responsif, semakin kecil → lebih halus
+smoothing_alpha = 0.2
+
+# Median filter: ambil N sample lalu ambil nilai tengah untuk tolak spike
+NUM_SAMPLES = 3       # Jumlah sample per pembacaan
+SAMPLE_INTERVAL = 0.1  # Jeda antar sample (detik) — 100ms cukup untuk DS18B20
 
 # Fungsi untuk generate device id
 def generate_device_id():
@@ -46,6 +56,27 @@ def get_ip_from_eth0():
     except subprocess.CalledProcessError as e:
         print(f"Error: {e}")
         return None
+
+def get_median_temperature(sensor):
+    """
+    Ambil NUM_SAMPLES pembacaan lalu kembalikan nilai median.
+    Teknik ini efektif menolak spike/glitch tanpa membuang presisi.
+    DS18B20 sudah menangani konversi 12-bit (~750ms) secara internal.
+    """
+    samples = []
+    for _ in range(NUM_SAMPLES):
+        try:
+            t = sensor.get_temperature()
+            if t is not None:
+                samples.append(t)
+        except Exception:
+            pass
+        time.sleep(SAMPLE_INTERVAL)  # Beri jeda antar sample
+    if not samples:
+        return None
+    samples.sort()
+    return samples[len(samples) // 2]  # Nilai median
+
 
 # Fungsi untuk membaca suhu dari semua sensor DS18B20
 def read_ds18b20():
@@ -92,24 +123,28 @@ def read_ds18b20():
             notifikasi_info = None
 
             try:
-                temp_raw = sensor.get_temperature()
-                time.sleep(1)  # <---- tambahkan delay 1s untuk stabilisasi pembacaan suhu
+                # === Step 1: Median Filter — tolak spike/glitch ===
+                # Ambil NUM_SAMPLES pembacaan dan gunakan nilai median
+                temp_raw = get_median_temperature(sensor)
                 if temp_raw is None:
                     raise ValueError("Sensor tidak terbaca")
-                # temperature = round(temp_raw + (temp_calibration or 0.0), 1)
-                
+
+                # === Step 2: Kalibrasi offset ===
                 calibrated_temp = round(temp_raw + (temp_calibration or 0.0), 1)
 
-                # === Terapkan EMA smoothing ===
-                if sensor.id not in ema_values:
-                    # nilai pertama langsung masuk (initialize)
-                    ema_values[sensor.id] = calibrated_temp
-                else:
-                    ema_values[sensor.id] = (
-                        smoothing_alpha * calibrated_temp + (1 - smoothing_alpha) * ema_values[sensor.id]
-                    )
-
-                temperature = round(ema_values[sensor.id], 1)
+                # === Step 3: EMA Smoothing — thread-safe ===
+                # EMA memperhalus fluktuasi kecil tanpa menunda respons perubahan suhu nyata
+                with ema_lock:
+                    if sensor.id not in ema_values:
+                        # Inisialisasi: nilai pertama langsung menjadi seed EMA
+                        ema_values[sensor.id] = calibrated_temp
+                    else:
+                        ema_values[sensor.id] = round(
+                            smoothing_alpha * calibrated_temp
+                            + (1 - smoothing_alpha) * ema_values[sensor.id],
+                            1
+                        )
+                    temperature = ema_values[sensor.id]  # Presisi 1 angka di belakang koma
 
             except Exception as e:
                 status = "ERROR"
