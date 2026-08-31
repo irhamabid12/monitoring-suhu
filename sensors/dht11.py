@@ -12,7 +12,18 @@ import requests
 import binascii
 
 # Inisialisasi sensor DHT11 pada pin GPIO
-dht_device = adafruit_dht.DHT11(board.D17)  # Gunakan GPIO 17
+DHT_PIN = board.D17
+dht_device = adafruit_dht.DHT11(DHT_PIN)  # Gunakan GPIO 17
+
+# Fungsi untuk reinisialisasi sensor jika error
+def reinit_dht():
+    global dht_device
+    try:
+        dht_device.exit()
+    except Exception:
+        pass
+    time.sleep(0.5)
+    dht_device = adafruit_dht.DHT11(DHT_PIN)
 
 # inisiasi variable time interval notifikasi
 last_temp_notification_time = None
@@ -123,8 +134,13 @@ def read_dht11():
         hum_calibration = settings.get("hum_calibration")
 
         # Baca data dari DHT11
-        temperature = dht_device.temperature
-        humidity = dht_device.humidity
+        try:
+            temperature = dht_device.temperature
+            humidity = dht_device.humidity
+        except OSError as e:
+            print(f"OSError membaca DHT11 (reinisialisasi sensor): {e}")
+            reinit_dht()
+            return None
 
         # Pastikan data tidak kosong
         if temperature is not None and humidity is not None:
@@ -257,7 +273,10 @@ def loop_data(ws):
         print(f"Error dalam loop data: {e}")
         raise
     finally:
-        dht_device.exit()
+        try:
+            dht_device.exit()
+        except Exception:
+            pass
         print("Sensor DHT11 dihentikan.")
 
 # membaca pesan dari web socet
