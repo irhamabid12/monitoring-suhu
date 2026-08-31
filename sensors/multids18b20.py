@@ -105,8 +105,12 @@ def read_ds18b20():
             
             # ambil nilai parameter di file setting_ds18b20.json
             temp_calibration = settings.get("temp_calibration")
-            min_temp = settings.get("min_temp", 0)
-            max_temp = settings.get("max_temp", 100)
+            min_temp = settings.get("min_temp")
+            if min_temp is None:
+                min_temp = 0
+            max_temp = settings.get("max_temp")
+            if max_temp is None:
+                max_temp = 100
 
             location = settings.get("location")
             label = settings.get("label")
