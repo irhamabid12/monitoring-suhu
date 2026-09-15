@@ -268,6 +268,7 @@ def read_and_send_all(states, ws):
             raise   # Biarkan thread utama tangani reconnect
         except Exception as e:
             print(f"Error sensor {state['device_id']}: {e}")
+        time.sleep(2) #  delay untuk tiap sensor
 
 
 # ============================================================
