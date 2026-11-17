@@ -141,13 +141,14 @@ def update_device_id_in_file(config_path, device_id):
 # Helpers
 # ============================================================
 def get_ip_from_eth0():
-    """Ambil IP address lokal yang diawali '10.'"""
+    """Ambil IP address lokal yang diawali '10.' atau fallback ke IP aktif pertama."""
     try:
         ip_address = subprocess.check_output("hostname -I", shell=True).decode("utf-8").strip()
-        for ip in ip_address.split():
+        ip_list = ip_address.split()
+        for ip in ip_list:
             if ip.startswith("10."):
                 return ip
-        return None
+        return ip_list[0] if ip_list else None
     except subprocess.CalledProcessError as e:
         print(f"Error get IP: {e}")
         return None
@@ -288,6 +289,10 @@ def loop_data(ws, states):
         raise
     except Exception as e:
         print(f"Error dalam loop data: {e}")
+        try:
+            ws.close()
+        except Exception:
+            pass
         raise
 
 
@@ -312,6 +317,10 @@ def listen_message_ws(ws, states):
 
     except Exception as e:
         print(f"Error dalam listen message: {e}")
+        try:
+            ws.close()
+        except Exception:
+            pass
         raise
 
 
@@ -385,7 +394,7 @@ if __name__ == "__main__":
     while True:
         try:
             print("Menghubungkan ke server WebSocket...")
-            ws = websocket.create_connection(WEBSOCKET_URL)
+            ws = websocket.create_connection(WEBSOCKET_URL, timeout=10)
             print("Terhubung ke server WebSocket!")
 
             data_thread   = Thread(target=loop_data,         args=(ws, states), daemon=True)
@@ -394,8 +403,14 @@ if __name__ == "__main__":
             data_thread.start()
             listen_thread.start()
 
-            data_thread.join()
-            listen_thread.join()
+            while data_thread.is_alive() and listen_thread.is_alive():
+                time.sleep(1)
+
+            try:
+                ws.close()
+            except Exception:
+                pass
+            raise ConnectionError("Salah satu thread WebSocket berhenti, melakukan reconnect...")
 
         except Exception as e:
             print(f"Koneksi terputus: {e}")

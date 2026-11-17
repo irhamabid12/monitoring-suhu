@@ -1,0 +1,54 @@
+name: Auto Pull & Restart Monitoring
+
+on:
+  push:
+    branches:
+      - monitoring
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Auto Pull & Restart PM2 pada Perangkat User
+        run: |
+          # Cari direktori repo lokal perangkat (bisa disesuaikan via variable REPO_DIR atau default path)
+          TARGET_DIR="${REPO_DIR:-}"
+          if [ -z "$TARGET_DIR" ]; then
+            for dir in \
+              "$HOME/monitoring-suhu" \
+              "$HOME/monitoring" \
+              "$HOME/Documents/RSDS/monitoring-suhu" \
+              "/home/iot/monitoring-suhu" \
+              "/home/iot/monitoring" \
+              "/home/itkirsdsiot/monitoring-suhu" \
+              "/home/itkirsdsiot/monitoring" \
+              "/home/pi/monitoring-suhu" \
+              "/home/pi/monitoring"
+            do
+              if [ -d "$dir/.git" ]; then
+                TARGET_DIR="$dir"
+                break
+              fi
+            done
+          fi
+
+          if [ -z "$TARGET_DIR" ] || [ ! -d "$TARGET_DIR/.git" ]; then
+            echo "Direktori repository lokal tidak ditemukan! Menggunakan workspace runner."
+            TARGET_DIR="$GITHUB_WORKSPACE"
+          fi
+
+          echo "Melakukan git pull di: $TARGET_DIR"
+          cd "$TARGET_DIR"
+          git fetch origin monitoring
+          git checkout monitoring
+          git pull origin monitoring
+
+          echo "Restarting PM2 services..."
+          export PATH="$PATH:/usr/local/bin:/usr/bin:$HOME/.nvm/versions/node/$(ls $HOME/.nvm/versions/node 2>/dev/null | tail -n 1)/bin"
+          if command -v pm2 >/dev/null 2>&1; then
+            pm2 restart all
+            pm2 save
+          else
+            echo "PM2 tidak ditemukan di PATH, melewati restart PM2."
+          fi
+

@@ -19,6 +19,10 @@ device_id = None
 mac_address = None
 ema_values = {}
 ema_lock = threading.Lock()  # Lock untuk thread safety akses ema_values
+ws_lock = threading.Lock()   # Lock untuk pengiriman WebSocket
+
+# Pastikan zona waktu Asia/Jakarta
+os.environ['TZ'] = 'Asia/Jakarta'
 
 # === Konfigurasi Algoritma Pembacaan Suhu ===
 # Alpha EMA: 0.2 = responsif tapi tetap halus (cocok untuk kulkas farmasi 2–8°C)
@@ -32,19 +36,31 @@ SAMPLE_INTERVAL = 0.1  # Jeda antar sample (detik) — 100ms cukup untuk DS18B20
 # Fungsi untuk generate device id
 def generate_device_id():
     global device_id, mac_address
+    serial = None
 
     # Ambil MAC address perangkat
     mac_address = ':'.join(['{:02x}'.format((uuid.getnode() >> elements) & 0xff)
                             for elements in range(0, 2*6, 2)][::-1])
-    
-    device_id = binascii.crc32(mac_address.encode()) & 0xffffffff
+
+    try:
+        with open('/proc/cpuinfo', 'r') as f:
+            for line in f:
+                if line.startswith('Serial'):
+                    serial = line.strip().split(":")[1].strip()
+    except Exception:
+        serial = None
+
+    if serial and serial != "0000000000000000":
+        device_id = binascii.crc32(serial.encode()) & 0xffffffff
+    else:
+        device_id = binascii.crc32(mac_address.encode()) & 0xffffffff
 
 # inisiasi variable time interval notifikasi
 last_temp_notification_time = None
 
 notification_interval = timedelta(minutes=5) # set delay selama 5 menit antara
 
-# Fungsi untuk mendapatkan IP address dari eth0
+# Fungsi untuk mendapatkan IP address dari eth0 atau wlan0
 def get_ip_from_eth0():
     try:
         ip_address = subprocess.check_output("hostname -I", shell=True).decode("utf-8").strip()
@@ -52,7 +68,7 @@ def get_ip_from_eth0():
         for ip in ip_list:
             if ip.startswith("10."):
                 return ip
-        return None
+        return ip_list[0] if ip_list else None
     except subprocess.CalledProcessError as e:
         print(f"Error: {e}")
         return None
@@ -177,7 +193,7 @@ def read_ds18b20():
             all_sensor_data.append(sensor_data)
 
             # Cek suhu apakah di luar batas, jika tidak normal kirim notifikasi
-            if wa_number != None and (temperature < min_temp or temperature > max_temp) and status == "OK":
+            if wa_number is not None and status == "OK" and temperature is not None and (temperature < min_temp or temperature > max_temp):
                 now = datetime.now()
                 if settings.get("notification_on", False):  # Cek notifikasi aktif/tidak
                     if last_temp_notification_time is None or (now - last_temp_notification_time) > notification_interval:
@@ -206,17 +222,17 @@ def read_ds18b20():
     except RuntimeError as error:
         print(f"RuntimeError: {error}")
         return None
+    except Exception as error:
+        print(f"Error saat membaca DS18B20: {error}")
+        return None
 
 # Fungsi untuk mengirim data ke WebSocket
 def send_data_to_websocket(data_list, ws):
-    try:
+    with ws_lock:
         for data in data_list:
             ws.send(json.dumps(data))
             print(f"Sent data: {data}")
         print("All sensor data sent to WebSocket server!")
-    except (websocket.WebSocketConnectionClosedException, Exception) as e:
-        print(f"WebSocket connection error: {e}")
-        reconnecting()
 
 # Loop utama untuk membaca dan mengirim data
 def loop_data(ws):
@@ -230,15 +246,14 @@ def loop_data(ws):
             time.sleep(1)
     except KeyboardInterrupt:
         print("Program dihentikan.")
-    finally:
-        print("Sensor DS18B20 dihentikan.")
-
-# Fungsi untuk melakukan reconnect jika WebSocket terputus
-def reconnecting():
-    time.sleep(5)
-    ws = websocket.create_connection(WEBSOCKET_URL)
-    print("Reconnected to WebSocket server!")
-    loop_data(ws)
+        raise
+    except Exception as e:
+        print(f"Error dalam loop data: {e}")
+        try:
+            ws.close()
+        except Exception:
+            pass
+        raise
 
 # Baca data dari setting_ds18b20.json
 def load_settings(sensor_id=None):
@@ -297,7 +312,7 @@ def listen_message_ws(ws):
                 
                 try:
                     message_data = json.loads(message)
-                    change_setting (message_data)
+                    change_setting(message_data)
                 except json.JSONDecodeError:
                     print("Pesan bukan format JSON — diabaikan.")
                 
@@ -307,19 +322,19 @@ def listen_message_ws(ws):
                     send_data_to_websocket(sensor_data, ws)
                     
             except websocket.WebSocketTimeoutException:
-                print("Timeout - mengirim data sensor...")
-                sensor_data = read_ds18b20()
-                if sensor_data:
-                    send_data_to_websocket(sensor_data, ws)
                 continue
                 
     except Exception as e:
         print(f"Error dalam listen message: {e}")
+        try:
+            ws.close()
+        except Exception:
+            pass
         raise
 
 def change_setting (message_data):
     if (message_data.get("action") == "forwading"):
-        target_device_id = message_data.get("id")
+        target_device_id = str(message_data.get("id", ""))
 
         print("Pesan forwarding diterima — memperbarui setting_ds18b20.json...")
         
@@ -330,7 +345,7 @@ def change_setting (message_data):
          # Cari sensor_id yang memiliki device_id yang cocok
         found_sensor_id = None
         for sensor_id, config in settings.items():
-            if config.get("device_id") == target_device_id:
+            if str(config.get("device_id")) == target_device_id:
                 found_sensor_id = sensor_id
                 break
 
@@ -357,7 +372,7 @@ def change_setting (message_data):
             if "user_calibrator" in message_data:
                 sensor_settings["user_calibrator"] = message_data["user_calibrator"]
         
-            settings[sensor_id] = sensor_settings  # Simpan kembali perubahan
+            settings[found_sensor_id] = sensor_settings  # Simpan kembali perubahan
 
             # Tulis kembali ke file setting_ds18b20.json
             with open(CONFIG_PATH, 'w') as file:
@@ -365,7 +380,7 @@ def change_setting (message_data):
             
             print("setting_ds18b20.json berhasil diperbarui.")
         else:
-            print(f"[WARNING] Sensor ID '{sensor_id}' tidak ditemukan dalam setting_ds18b20.json.")
+            print(f"[WARNING] Device ID '{target_device_id}' tidak ditemukan dalam setting_ds18b20.json.")
         
 
 # Program utama
@@ -374,25 +389,27 @@ if __name__ == "__main__":
     while True:
         try:
             print("Menghubungkan ke server WebSocket...")
-            ws = websocket.create_connection(WEBSOCKET_URL)
+            ws = websocket.create_connection(WEBSOCKET_URL, timeout=10)
             print("Connected to WebSocket server!")
             
-            # loop_data(ws)
-
-             # Jalankan loop data dan listen message dalam thread terpisah
             from threading import Thread
             
-            data_thread = Thread(target=loop_data, args=(ws,))
-            listen_thread = Thread(target=listen_message_ws, args=(ws,))
+            data_thread = Thread(target=loop_data, args=(ws,), daemon=True)
+            listen_thread = Thread(target=listen_message_ws, args=(ws,), daemon=True)
             
             data_thread.start()
             listen_thread.start()
             
-            data_thread.join()
-            listen_thread.join()
-        # except (websocket.WebSocketConnectionClosedException, Exception) as e:
-            # print(f"WebSocket connection error: {e}")
-            # reconnecting()
+            # Pantau kedua thread: jika salah satu berhenti karena koneksi terputus, lakukan reconnect
+            while data_thread.is_alive() and listen_thread.is_alive():
+                time.sleep(1)
+
+            try:
+                ws.close()
+            except Exception:
+                pass
+            raise ConnectionError("Salah satu thread WebSocket berhenti, melakukan reconnect...")
+
         except Exception as e:
             print(f"Koneksi terputus: {e}")
             print("Mencoba menghubungkan kembali dalam 5 detik...")
