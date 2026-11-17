@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import subprocess
 import requests
 import binascii
-from threading import Thread
+from threading import Thread, Lock
 
 # ============================================================
 # Konfigurasi sensor DHT11 — tambah/kurangi entry sesuai hardware
@@ -34,10 +34,12 @@ notification_interval = timedelta(seconds=60)
 os.environ['TZ'] = 'Asia/Jakarta'
 
 # ============================================================
-# Global device info (shared across all sensors)
+# Global device info & locks (shared across all sensors)
 # ============================================================
 base_id = None
 mac_address = None
+sensor_lock = Lock()
+ws_lock = Lock()
 
 
 def generate_device_id():
@@ -172,8 +174,8 @@ def read_single_sensor(state):
     try:
         temperature = state["dht_device"].temperature
         humidity    = state["dht_device"].humidity
-    except OSError as e:
-        print(f"OSError sensor {device_id} (reinisialisasi): {e}")
+    except (OSError, OverflowError) as e:
+        print(f"Error sensor {device_id} (reinisialisasi): {e}")
         reinit_dht(state)
         return None
     except RuntimeError as e:
@@ -249,26 +251,28 @@ def read_single_sensor(state):
 # WebSocket helpers
 # ============================================================
 def send_data_to_websocket(data, ws):
-    ws.send(json.dumps(data))
+    with ws_lock:
+        ws.send(json.dumps(data))
     print(f"Data terkirim: {data}")
 
 
 def read_and_send_all(states, ws):
     """Baca semua sensor secara sequential dan kirim ke WebSocket."""
-    for state in states:
-        try:
-            sensor_data = read_single_sensor(state)
-            if sensor_data:
-                send_data_to_websocket(sensor_data, ws)
-            else:
-                print(f"Sensor device_id={state['device_id']}: data tidak tersedia")
-        except (websocket.WebSocketConnectionClosedException,
-                websocket.WebSocketException) as e:
-            print(f"WebSocket error saat kirim sensor {state['device_id']}: {e}")
-            raise   # Biarkan thread utama tangani reconnect
-        except Exception as e:
-            print(f"Error sensor {state['device_id']}: {e}")
-        time.sleep(2) #  delay untuk tiap sensor
+    with sensor_lock:
+        for state in states:
+            try:
+                sensor_data = read_single_sensor(state)
+                if sensor_data:
+                    send_data_to_websocket(sensor_data, ws)
+                else:
+                    print(f"Sensor device_id={state['device_id']}: data tidak tersedia")
+            except (websocket.WebSocketConnectionClosedException,
+                    websocket.WebSocketException) as e:
+                print(f"WebSocket error saat kirim sensor {state['device_id']}: {e}")
+                raise   # Biarkan thread utama tangani reconnect
+            except Exception as e:
+                print(f"Error sensor {state['device_id']}: {e}")
+            time.sleep(2) #  delay untuk tiap sensor
 
 
 # ============================================================
@@ -285,13 +289,6 @@ def loop_data(ws, states):
     except Exception as e:
         print(f"Error dalam loop data: {e}")
         raise
-    finally:
-        for state in states:
-            try:
-                state["dht_device"].exit()
-            except Exception:
-                pass
-        print("Semua sensor DHT11 dihentikan.")
 
 
 # ============================================================
@@ -311,8 +308,6 @@ def listen_message_ws(ws, states):
                 read_and_send_all(states, ws)
 
             except websocket.WebSocketTimeoutException:
-                print("Timeout - mengirim data sensor...")
-                read_and_send_all(states, ws)
                 continue
 
     except Exception as e:
