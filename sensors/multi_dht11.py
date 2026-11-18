@@ -74,7 +74,7 @@ def create_sensor_state(cfg):
         "id_offset":       cfg["id_offset"],
         "config_path":     config_path,
         "device_id":       None,
-        "dht_device":      adafruit_dht.DHT11(cfg["pin"], use_pulseio=False),
+        "dht_device":      adafruit_dht.DHT11(cfg["pin"]),
         "last_notif_time": None,
     }
 
@@ -86,7 +86,7 @@ def reinit_dht(state):
     except Exception:
         pass
     time.sleep(0.5)
-    state["dht_device"] = adafruit_dht.DHT11(state["pin"], use_pulseio=False)
+    state["dht_device"] = adafruit_dht.DHT11(state["pin"])
 
 
 # ============================================================
